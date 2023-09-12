@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package otlpjsonfilereceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otlpjsonfilereceiver"
 
@@ -18,53 +7,50 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/receiver"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otlpjsonfilereceiver/internal/metadata"
 )
 
 const (
-	typeStr   = "otlpjsonfile"
-	stability = component.StabilityLevelAlpha
 	transport = "file"
 )
 
 // NewFactory creates a factory for file receiver
-func NewFactory() component.ReceiverFactory {
-	return component.NewReceiverFactory(
-		typeStr,
+func NewFactory() receiver.Factory {
+	return receiver.NewFactory(
+		metadata.Type,
 		createDefaultConfig,
-		component.WithMetricsReceiver(createMetricsReceiver, stability),
-		component.WithLogsReceiver(createLogsReceiver, stability),
-		component.WithTracesReceiver(createTracesReceiver, stability))
+		receiver.WithMetrics(createMetricsReceiver, metadata.MetricsStability),
+		receiver.WithLogs(createLogsReceiver, metadata.LogsStability),
+		receiver.WithTraces(createTracesReceiver, metadata.TracesStability))
 }
 
 type Config struct {
-	config.ReceiverSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct
-	fileconsumer.Config     `mapstructure:",squash"`
-	StorageID               *component.ID `mapstructure:"storage"`
+	fileconsumer.Config `mapstructure:",squash"`
+	StorageID           *component.ID `mapstructure:"storage"`
 }
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		Config:           *fileconsumer.NewConfig(),
-		ReceiverSettings: config.NewReceiverSettings(component.NewID(typeStr)),
+		Config: *fileconsumer.NewConfig(),
 	}
 }
 
-type receiver struct {
+type otlpjsonfilereceiver struct {
 	input     *fileconsumer.Manager
 	id        component.ID
 	storageID *component.ID
 }
 
-func (f *receiver) Start(ctx context.Context, host component.Host) error {
+func (f *otlpjsonfilereceiver) Start(ctx context.Context, host component.Host) error {
 	storageClient, err := adapter.GetStorageClient(ctx, host, f.storageID, f.id)
 	if err != nil {
 		return err
@@ -72,11 +58,11 @@ func (f *receiver) Start(ctx context.Context, host component.Host) error {
 	return f.input.Start(storageClient)
 }
 
-func (f *receiver) Shutdown(ctx context.Context) error {
+func (f *otlpjsonfilereceiver) Shutdown(_ context.Context) error {
 	return f.input.Stop()
 }
 
-func createLogsReceiver(_ context.Context, settings component.ReceiverCreateSettings, configuration component.Config, logs consumer.Logs) (component.LogsReceiver, error) {
+func createLogsReceiver(_ context.Context, settings receiver.CreateSettings, configuration component.Config, logs consumer.Logs) (receiver.Logs, error) {
 	logsUnmarshaler := &plog.JSONUnmarshaler{}
 	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
 		ReceiverID:             settings.ID,
@@ -87,25 +73,28 @@ func createLogsReceiver(_ context.Context, settings component.ReceiverCreateSett
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, token []byte, _ map[string]any) error {
 		ctx = obsrecv.StartLogsOp(ctx)
 		var l plog.Logs
 		l, err = logsUnmarshaler.UnmarshalLogs(token)
 		if err != nil {
-			obsrecv.EndLogsOp(ctx, typeStr, 0, err)
+			obsrecv.EndLogsOp(ctx, metadata.Type, 0, err)
 		} else {
-			err = logs.ConsumeLogs(ctx, l)
-			obsrecv.EndLogsOp(ctx, typeStr, l.LogRecordCount(), err)
+			if l.ResourceLogs().Len() != 0 {
+				err = logs.ConsumeLogs(ctx, l)
+			}
+			obsrecv.EndLogsOp(ctx, metadata.Type, l.LogRecordCount(), err)
 		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &receiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
+	return &otlpjsonfilereceiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
 }
 
-func createMetricsReceiver(_ context.Context, settings component.ReceiverCreateSettings, configuration component.Config, metrics consumer.Metrics) (component.MetricsReceiver, error) {
+func createMetricsReceiver(_ context.Context, settings receiver.CreateSettings, configuration component.Config, metrics consumer.Metrics) (receiver.Metrics, error) {
 	metricsUnmarshaler := &pmetric.JSONUnmarshaler{}
 	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
 		ReceiverID:             settings.ID,
@@ -116,25 +105,28 @@ func createMetricsReceiver(_ context.Context, settings component.ReceiverCreateS
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, token []byte, _ map[string]any) error {
 		ctx = obsrecv.StartMetricsOp(ctx)
 		var m pmetric.Metrics
 		m, err = metricsUnmarshaler.UnmarshalMetrics(token)
 		if err != nil {
-			obsrecv.EndMetricsOp(ctx, typeStr, 0, err)
+			obsrecv.EndMetricsOp(ctx, metadata.Type, 0, err)
 		} else {
-			err = metrics.ConsumeMetrics(ctx, m)
-			obsrecv.EndMetricsOp(ctx, typeStr, m.MetricCount(), err)
+			if m.ResourceMetrics().Len() != 0 {
+				err = metrics.ConsumeMetrics(ctx, m)
+			}
+			obsrecv.EndMetricsOp(ctx, metadata.Type, m.MetricCount(), err)
 		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &receiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
+	return &otlpjsonfilereceiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
 }
 
-func createTracesReceiver(ctx context.Context, settings component.ReceiverCreateSettings, configuration component.Config, traces consumer.Traces) (component.TracesReceiver, error) {
+func createTracesReceiver(_ context.Context, settings receiver.CreateSettings, configuration component.Config, traces consumer.Traces) (receiver.Traces, error) {
 	tracesUnmarshaler := &ptrace.JSONUnmarshaler{}
 	obsrecv, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
 		ReceiverID:             settings.ID,
@@ -145,20 +137,23 @@ func createTracesReceiver(ctx context.Context, settings component.ReceiverCreate
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, token []byte, _ map[string]any) error {
 		ctx = obsrecv.StartTracesOp(ctx)
 		var t ptrace.Traces
 		t, err = tracesUnmarshaler.UnmarshalTraces(token)
 		if err != nil {
-			obsrecv.EndTracesOp(ctx, typeStr, 0, err)
+			obsrecv.EndTracesOp(ctx, metadata.Type, 0, err)
 		} else {
-			err = traces.ConsumeTraces(ctx, t)
-			obsrecv.EndTracesOp(ctx, typeStr, t.SpanCount(), err)
+			if t.ResourceSpans().Len() != 0 {
+				err = traces.ConsumeTraces(ctx, t)
+			}
+			obsrecv.EndTracesOp(ctx, metadata.Type, t.SpanCount(), err)
 		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &receiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
+	return &otlpjsonfilereceiver{input: input, id: settings.ID, storageID: cfg.StorageID}, nil
 }

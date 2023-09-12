@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package routingprocessor
 
@@ -21,8 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor/internal/metadata"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -33,12 +24,12 @@ func TestLoadConfig(t *testing.T) {
 	}{
 		{
 			configPath: "config_traces.yaml",
-			id:         component.NewIDWithName(typeStr, ""),
+			id:         component.NewIDWithName(metadata.Type, ""),
 			expected: &Config{
-				ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
-				DefaultExporters:  []string{"otlp"},
-				AttributeSource:   "context",
-				FromAttribute:     "X-Tenant",
+				DefaultExporters: []string{"otlp"},
+				AttributeSource:  "context",
+				FromAttribute:    "X-Tenant",
+				ErrorMode:        ottl.PropagateError,
 				Table: []RoutingTableItem{
 					{
 						Value:     "acme",
@@ -53,12 +44,12 @@ func TestLoadConfig(t *testing.T) {
 		},
 		{
 			configPath: "config_metrics.yaml",
-			id:         component.NewIDWithName(typeStr, ""),
+			id:         component.NewIDWithName(metadata.Type, ""),
 			expected: &Config{
-				ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
-				DefaultExporters:  []string{"logging/default"},
-				AttributeSource:   "context",
-				FromAttribute:     "X-Custom-Metrics-Header",
+				DefaultExporters: []string{"logging/default"},
+				AttributeSource:  "context",
+				FromAttribute:    "X-Custom-Metrics-Header",
+				ErrorMode:        ottl.PropagateError,
 				Table: []RoutingTableItem{
 					{
 						Value:     "acme",
@@ -73,12 +64,12 @@ func TestLoadConfig(t *testing.T) {
 		},
 		{
 			configPath: "config_logs.yaml",
-			id:         component.NewIDWithName(typeStr, ""),
+			id:         component.NewIDWithName(metadata.Type, ""),
 			expected: &Config{
-				ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
-				DefaultExporters:  []string{"logging/default"},
-				AttributeSource:   "context",
-				FromAttribute:     "X-Custom-Logs-Header",
+				DefaultExporters: []string{"logging/default"},
+				AttributeSource:  "context",
+				FromAttribute:    "X-Custom-Logs-Header",
+				ErrorMode:        ottl.PropagateError,
 				Table: []RoutingTableItem{
 					{
 						Value:     "acme",
@@ -93,12 +84,12 @@ func TestLoadConfig(t *testing.T) {
 		},
 		{
 			configPath: "config.yaml",
-			id:         component.NewIDWithName(typeStr, ""),
+			id:         component.NewIDWithName(metadata.Type, ""),
 			expected: &Config{
-				ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
-				DefaultExporters:  []string{"jaeger"},
-				AttributeSource:   resourceAttributeSource,
-				FromAttribute:     "X-Tenant",
+				DefaultExporters: []string{"jaeger"},
+				AttributeSource:  resourceAttributeSource,
+				FromAttribute:    "X-Tenant",
+				ErrorMode:        ottl.IgnoreError,
 				Table: []RoutingTableItem{
 					{
 						Value:     "acme",
@@ -109,17 +100,17 @@ func TestLoadConfig(t *testing.T) {
 		},
 		{
 			configPath: "config.yaml",
-			id:         component.NewIDWithName(typeStr, "ottl"),
+			id:         component.NewIDWithName(metadata.Type, "ottl"),
 			expected: &Config{
-				ProcessorSettings: config.NewProcessorSettings(component.NewID(typeStr)),
-				DefaultExporters:  []string{"jaeger"},
+				DefaultExporters: []string{"jaeger"},
+				ErrorMode:        ottl.PropagateError,
 				Table: []RoutingTableItem{
 					{
 						Statement: "route() where resource.attributes[\"X-Tenant\"] == \"acme\"",
 						Exporters: []string{"jaeger/acme"},
 					},
 					{
-						Statement: "delete_key(resource.attributes, \"X-Tenant\") where IsMatch(resource.attributes[\"X-Tenant\"], \".*corp\") == true",
+						Statement: "delete_key(resource.attributes, \"X-Tenant\") where IsMatch(resource.attributes[\"X-Tenant\"], \".*corp\")",
 						Exporters: []string{"jaeger/ecorp"},
 					},
 				},

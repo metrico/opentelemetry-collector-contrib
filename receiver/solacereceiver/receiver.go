@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package solacereceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/solacereceiver"
 
@@ -19,22 +8,23 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
-	"go.uber.org/atomic"
+	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 )
 
-// solaceTracesReceiver uses azure AMQP to consume and handle telemetry data from SOlace. Implements component.TracesReceiver
+// solaceTracesReceiver uses azure AMQP to consume and handle telemetry data from SOlace. Implements receiver.Traces
 type solaceTracesReceiver struct {
 	// config is the receiver.Config instance used to build the receiver
 	config *Config
 
 	nextConsumer consumer.Traces
-	settings     component.ReceiverCreateSettings
+	settings     receiver.CreateSettings
 	metrics      *opencensusMetrics
 	unmarshaller tracesUnmarshaller
 	// cancel is the function that will cancel the context associated with the main worker loop
@@ -48,16 +38,11 @@ type solaceTracesReceiver struct {
 	retryTimeout time.Duration
 }
 
-// newTracesReceiver creates a new solaceTraceReceiver as a component.TracesReceiver
-func newTracesReceiver(config *Config, set component.ReceiverCreateSettings, nextConsumer consumer.Traces) (component.TracesReceiver, error) {
+// newTracesReceiver creates a new solaceTraceReceiver as a receiver.Traces
+func newTracesReceiver(config *Config, set receiver.CreateSettings, nextConsumer consumer.Traces) (receiver.Traces, error) {
 	if nextConsumer == nil {
 		set.Logger.Warn("Next consumer in pipeline is null, stopping receiver")
 		return nil, component.ErrNilNextConsumer
-	}
-
-	if err := config.Validate(); err != nil {
-		set.Logger.Warn("Error validating configuration", zap.Any("error", err))
-		return nil, err
 	}
 
 	factory, err := newAMQPMessagingServiceFactory(config, set.Logger)
@@ -83,7 +68,7 @@ func newTracesReceiver(config *Config, set component.ReceiverCreateSettings, nex
 		shutdownWaitGroup: &sync.WaitGroup{},
 		factory:           factory,
 		retryTimeout:      1 * time.Second,
-		terminating:       atomic.NewBool(false),
+		terminating:       &atomic.Bool{},
 	}, nil
 }
 
@@ -103,7 +88,7 @@ func (s *solaceTracesReceiver) Start(_ context.Context, _ component.Host) error 
 }
 
 // Shutdown implements component.Receiver::Shutdown
-func (s *solaceTracesReceiver) Shutdown(ctx context.Context) error {
+func (s *solaceTracesReceiver) Shutdown(_ context.Context) error {
 	s.terminating.Store(true)
 	s.metrics.recordReceiverStatus(receiverStateTerminating)
 	s.settings.Logger.Info("Shutdown waiting for all components to complete")
@@ -150,7 +135,7 @@ reconnectionLoop:
 			service := s.factory()
 			defer service.close(ctx)
 
-			if err := service.dial(); err != nil {
+			if err := service.dial(ctx); err != nil {
 				s.settings.Logger.Debug("Encountered error while connecting messaging service", zap.Error(err))
 				s.metrics.recordFailedReconnection()
 				return
@@ -262,7 +247,7 @@ flowControlLoop:
 			}
 		} else {
 			// no forward error
-			s.metrics.recordReportedSpans()
+			s.metrics.recordReportedSpans(int64(traces.SpanCount()))
 			break flowControlLoop
 		}
 	}

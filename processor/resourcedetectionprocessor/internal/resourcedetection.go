@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 // Package internal contains an interface for detecting resource information,
 // and a provider to merge the resources returned by a slice of custom detectors.
@@ -23,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +29,7 @@ type ResourceDetectorConfig interface {
 	GetConfigFromType(DetectorType) DetectorConfig
 }
 
-type DetectorFactory func(component.ProcessorCreateSettings, DetectorConfig) (Detector, error)
+type DetectorFactory func(processor.CreateSettings, DetectorConfig) (Detector, error)
 
 type ResourceProviderFactory struct {
 	// detectors holds all possible detector types.
@@ -52,7 +41,7 @@ func NewProviderFactory(detectors map[DetectorType]DetectorFactory) *ResourcePro
 }
 
 func (f *ResourceProviderFactory) CreateResourceProvider(
-	params component.ProcessorCreateSettings,
+	params processor.CreateSettings,
 	timeout time.Duration,
 	attributes []string,
 	detectorConfigs ResourceDetectorConfig,
@@ -73,7 +62,7 @@ func (f *ResourceProviderFactory) CreateResourceProvider(
 	return provider, nil
 }
 
-func (f *ResourceProviderFactory) getDetectors(params component.ProcessorCreateSettings, detectorConfigs ResourceDetectorConfig, detectorTypes []DetectorType) ([]Detector, error) {
+func (f *ResourceProviderFactory) getDetectors(params processor.CreateSettings, detectorConfigs ResourceDetectorConfig, detectorTypes []DetectorType) ([]Detector, error) {
 	detectors := make([]Detector, 0, len(detectorTypes))
 	for _, detectorType := range detectorTypes {
 		detectorFactory, ok := f.detectors[detectorType]

@@ -18,6 +18,7 @@ The `recombine` operator combines consecutive logs into single logs based on sim
 | `force_flush_period` | `5s`             | Flush timeout after which entries will be flushed aborting the wait for their sub parts to be merged with. |
 | `source_identifier`  | `$attributes["file.path"]` | The [field](../types/field.md) to separate one source of logs from others when combining them. |
 | `max_sources`        | 1000             | The maximum number of unique sources allowed concurrently to be tracked for combining separately. |
+| `max_log_size`       | 0                | The maximum bytes size of the combined field. Once the size exceeds the limit, all received entries of the source will be combined and flushed. "0" of max_log_size means no limit. |
 
 Exactly one of `is_first_entry` and `is_last_entry` must be specified.
 
@@ -100,8 +101,8 @@ This can be expressed with the following configuration:
 
 ```yaml
 - type: recombine
-  combine_field: body.message
-  is_first_entry: body.message matches "^[^\s]"
+  combine_field: body
+  is_first_entry: body matches "^[^\\s]"
 ```
 
 Given the following input file:
@@ -125,23 +126,17 @@ The following logs will be output:
   {
     "timestamp": "2020-12-04T13:03:38.41149-05:00",
     "severity": 0,
-    "body": {
-      "message": "Log message 1",
-    }
+    "body": "Log message 1"
   },
   {
     "timestamp": "2020-12-04T13:03:38.41149-05:00",
     "severity": 0,
-    "body": {
-      "message": "Error: java.lang.Exception: Stack trace\n        at java.lang.Thread.dumpStack(Thread.java:1336)\n        at Main.demo3(Main.java:15)\n        at Main.demo2(Main.java:12)\n        at Main.demo1(Main.java:9)\n        at Main.demo(Main.java:6)\n        at Main.main(Main.java:3)",
-    }
+    "body": "Error: java.lang.Exception: Stack trace\n        at java.lang.Thread.dumpStack(Thread.java:1336)\n        at Main.demo3(Main.java:15)\n        at Main.demo2(Main.java:12)\n        at Main.demo1(Main.java:9)\n        at Main.demo(Main.java:6)\n        at Main.main(Main.java:3)"
   },
   {
     "timestamp": "2020-12-04T13:03:38.41149-05:00",
     "severity": 0,
-    "body": {
-      "message": "Another log message",
-    }
+    "body": "Another log message",
   },
 ]
 ```

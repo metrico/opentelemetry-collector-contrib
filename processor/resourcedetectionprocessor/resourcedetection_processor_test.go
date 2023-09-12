@@ -1,16 +1,5 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package resourcedetectionprocessor
 
@@ -25,13 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/processor/processortest"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/env"
@@ -42,7 +32,7 @@ type MockDetector struct {
 	mock.Mock
 }
 
-func (p *MockDetector) Detect(ctx context.Context) (resource pcommon.Resource, schemaURL string, err error) {
+func (p *MockDetector) Detect(_ context.Context) (resource pcommon.Resource, schemaURL string, err error) {
 	args := p.Called()
 	return args.Get(0).(pcommon.Resource), "", args.Error(1)
 }
@@ -163,7 +153,7 @@ func TestResourceProcessor(t *testing.T) {
 			require.NoError(t, res.Attributes().FromRaw(tt.detectedResource))
 			md1.On("Detect").Return(res, tt.detectedError)
 			factory.resourceProviderFactory = internal.NewProviderFactory(
-				map[internal.DetectorType]internal.DetectorFactory{"mock": func(component.ProcessorCreateSettings, internal.DetectorConfig) (internal.Detector, error) {
+				map[internal.DetectorType]internal.DetectorFactory{"mock": func(processor.CreateSettings, internal.DetectorConfig) (internal.Detector, error) {
 					return md1, nil
 				}})
 
@@ -172,7 +162,6 @@ func TestResourceProcessor(t *testing.T) {
 			}
 
 			cfg := &Config{
-				ProcessorSettings:  config.NewProcessorSettings(component.NewID(typeStr)),
 				Override:           tt.override,
 				Detectors:          tt.detectorKeys,
 				HTTPClientSettings: confighttp.HTTPClientSettings{Timeout: time.Second},
@@ -180,7 +169,7 @@ func TestResourceProcessor(t *testing.T) {
 
 			// Test trace consumer
 			ttn := new(consumertest.TracesSink)
-			rtp, err := factory.createTracesProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, ttn)
+			rtp, err := factory.createTracesProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, ttn)
 
 			if tt.expectedNewError != "" {
 				assert.EqualError(t, err, tt.expectedNewError)
@@ -211,7 +200,7 @@ func TestResourceProcessor(t *testing.T) {
 
 			// Test metrics consumer
 			tmn := new(consumertest.MetricsSink)
-			rmp, err := factory.createMetricsProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, tmn)
+			rmp, err := factory.createMetricsProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, tmn)
 
 			if tt.expectedNewError != "" {
 				assert.EqualError(t, err, tt.expectedNewError)
@@ -242,7 +231,7 @@ func TestResourceProcessor(t *testing.T) {
 
 			// Test logs consumer
 			tln := new(consumertest.LogsSink)
-			rlp, err := factory.createLogsProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, tln)
+			rlp, err := factory.createLogsProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, tln)
 
 			if tt.expectedNewError != "" {
 				assert.EqualError(t, err, tt.expectedNewError)
@@ -277,7 +266,7 @@ func TestResourceProcessor(t *testing.T) {
 func benchmarkConsumeTraces(b *testing.B, cfg *Config) {
 	factory := NewFactory()
 	sink := new(consumertest.TracesSink)
-	processor, _ := factory.CreateTracesProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, sink)
+	processor, _ := factory.CreateTracesProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, sink)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -299,7 +288,7 @@ func BenchmarkConsumeTracesAll(b *testing.B) {
 func benchmarkConsumeMetrics(b *testing.B, cfg *Config) {
 	factory := NewFactory()
 	sink := new(consumertest.MetricsSink)
-	processor, _ := factory.CreateMetricsProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, sink)
+	processor, _ := factory.CreateMetricsProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, sink)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -321,7 +310,7 @@ func BenchmarkConsumeMetricsAll(b *testing.B) {
 func benchmarkConsumeLogs(b *testing.B, cfg *Config) {
 	factory := NewFactory()
 	sink := new(consumertest.LogsSink)
-	processor, _ := factory.CreateLogsProcessor(context.Background(), componenttest.NewNopProcessorCreateSettings(), cfg, sink)
+	processor, _ := factory.CreateLogsProcessor(context.Background(), processortest.NewNopCreateSettings(), cfg, sink)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

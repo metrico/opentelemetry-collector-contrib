@@ -1,16 +1,5 @@
-// Copyright  The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
 
 package snmpreceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/snmpreceiver"
 
@@ -25,11 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.opentelemetry.io/collector/receiver/scrapererror"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/comparetest"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/comparetest/golden"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/golden"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/pmetrictest"
 )
 
 type MockClient struct {
@@ -52,8 +42,8 @@ func (_m *MockClient) Close() error {
 
 // Connect provides a mock function with given fields:
 func (_m *MockClient) Connect() error {
-	ret := _m.Called()
 
+	ret := _m.Called()
 	var r0 error
 	if rf, ok := ret.Get(0).(func() error); ok {
 		r0 = rf()
@@ -102,7 +92,7 @@ func TestStart(t *testing.T) {
 			testFunc: func(t *testing.T) {
 				scraper := &snmpScraper{
 					cfg:      &Config{},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 				}
 				err := scraper.start(context.Background(), componenttest.NewNopHost())
 				require.Error(t, err)
@@ -114,7 +104,7 @@ func TestStart(t *testing.T) {
 
 				scraper := &snmpScraper{
 					cfg:      createDefaultConfig().(*Config),
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 				}
 				err := scraper.start(context.Background(), componenttest.NewNopHost())
 				require.NoError(t, err)
@@ -141,7 +131,7 @@ func TestScrape(t *testing.T) {
 				mockClient.On("Close").Return(nil)
 				scraper := &snmpScraper{
 					cfg:      &Config{},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -176,7 +166,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -212,7 +202,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -250,13 +240,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "1_scalar_metrics_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "1_scalar_metrics_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -264,7 +254,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -297,13 +287,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "1_scalar_metrics_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "1_scalar_metrics_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -311,7 +301,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -346,13 +336,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "2_scalar_metrics_sum_cumulative_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"2_scalar_metrics_sum_cumulative_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -360,7 +351,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -395,13 +386,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "3_scalar_metrics_sum_delta_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"3_scalar_metrics_sum_delta_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -409,7 +401,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -459,13 +451,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "4_scalar_multiple_metrics_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "4_scalar_multiple_metrics_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -473,7 +465,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -525,13 +517,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "5_scalar_metric_w_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "5_scalar_metric_w_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -539,7 +531,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -597,13 +589,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "6_scalar_metric_w_multi_datapoint_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"6_scalar_metric_w_multi_datapoint_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -611,7 +604,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -640,7 +633,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -688,7 +681,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -743,13 +736,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "7_indexed_metrics_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "7_indexed_metrics_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -757,7 +750,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -807,13 +800,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "7_indexed_metrics_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "7_indexed_metrics_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -821,7 +814,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -873,13 +866,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "8_indexed_metrics_sum_cumulative_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"8_indexed_metrics_sum_cumulative_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -887,7 +881,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -939,13 +933,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "9_indexed_metrics_sum_delta_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"9_indexed_metrics_sum_delta_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -953,7 +948,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1021,13 +1016,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "10_indexed_scalar_metrics_same_resource_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"10_indexed_scalar_metrics_same_resource_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1035,7 +1031,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1114,13 +1110,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "11_indexed_multiple_metrics_same_resource_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"11_indexed_multiple_metrics_same_resource_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1128,7 +1125,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1205,13 +1202,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "12_indexed_metrics_w_all_attrs_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"12_indexed_metrics_w_all_attrs_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1219,7 +1217,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1284,7 +1282,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -1368,7 +1366,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -1437,13 +1435,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "13_indexed_metrics_w_column_oid_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"13_indexed_metrics_w_column_oid_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1451,7 +1450,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1514,13 +1513,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "13_indexed_metrics_w_column_oid_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"13_indexed_metrics_w_column_oid_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1528,7 +1528,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1591,13 +1591,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "14_indexed_column_oid_float_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"14_indexed_column_oid_float_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1605,7 +1606,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1668,13 +1669,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "15_indexed_column_oid_int_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"15_indexed_column_oid_int_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1682,7 +1684,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1753,13 +1755,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "16_indexed_prefix_res_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"16_indexed_prefix_res_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -1767,7 +1770,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -1828,7 +1831,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -1908,7 +1911,7 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
@@ -1998,13 +2001,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "17_indexed_oid_res_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "17_indexed_oid_res_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -2012,7 +2015,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -2096,13 +2099,13 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "17_indexed_oid_res_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics", "17_indexed_oid_res_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -2110,7 +2113,7 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
@@ -2172,13 +2175,14 @@ func TestScrape(t *testing.T) {
 							},
 						},
 					},
-					settings: componenttest.NewNopReceiverCreateSettings(),
+					settings: receivertest.NewNopCreateSettings(),
 					client:   mockClient,
 					logger:   zap.NewNop(),
 				}
 
 				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
-					goldenPath := filepath.Join("testdata", "expected_metrics", "18_indexed_oid_and_prefix_res_attr_golden.json")
+					goldenPath := filepath.Join("testdata", "expected_metrics",
+						"18_indexed_oid_and_prefix_res_attr_golden.yaml")
 					expectedMetrics, err := golden.ReadMetrics(goldenPath)
 					require.NoError(t, err)
 					return expectedMetrics
@@ -2186,7 +2190,892 @@ func TestScrape(t *testing.T) {
 				expectedMetrics := expectedMetricGen(t)
 				metrics, err := scraper.scrape(context.Background())
 				require.NoError(t, err)
-				err = comparetest.CompareMetrics(expectedMetrics, metrics)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (string) resource attribute attached to ColumnOID metric alongside a ColumnOID (string) resource attribute creates metric (19)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				coidRA11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     "string1",
+					valueType: stringVal,
+				}
+				coidRA12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     "string2",
+					valueType: stringVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".1"}, mock.Anything).Return([]SNMPData{coidRA11, coidRA12}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+							"rattr2": {
+								OID: ".1",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1", "rattr2"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "19_scalar_ra_string_and_coid_ra_string_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (int) resource attribute attached to ColumnOID metric alongside a ColumnOID (int) resource attribute creates metric (20)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     int64(5),
+					valueType: integerVal,
+				}
+				coidRA11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     int64(1),
+					valueType: integerVal,
+				}
+				coidRA12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     int64(2),
+					valueType: integerVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".1"}, mock.Anything).Return([]SNMPData{coidRA11, coidRA12}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+							"rattr2": {
+								OID: ".1",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1", "rattr2"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "20_scalar_ra_int_and_coid_ra_int_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (float) resource attribute attached to ColumnOID metric alongside a ColumnOID (float) resource attribute creates metric (21)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     float64(5.0),
+					valueType: floatVal,
+				}
+				coidRA11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     float64(1.0),
+					valueType: floatVal,
+				}
+				coidRA12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     float64(2.0),
+					valueType: floatVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".1"}, mock.Anything).Return([]SNMPData{coidRA11, coidRA12}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+							"rattr2": {
+								OID: ".1",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1", "rattr2"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "21_scalar_ra_float_and_coid_ra_float_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (string) resource attribute attached to ColumnOID metric alongside an IndexedValuePrefix resource attribute creates metric (22)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+							"rattr2": {
+								IndexedValuePrefix: "p",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1", "rattr2"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "22_scalar_ra_string_and_prefix_ra_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "Multiple ScalarOID (string) resource attributes attached to ColumnOID metric alongside multiple Column OID (string) resource attributes creates metrics (23)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA1 := SNMPData{
+					oid:       ".5.0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				scalarRA2 := SNMPData{
+					oid:       ".6.0",
+					value:     "also scalar",
+					valueType: stringVal,
+				}
+				coidRA11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     "string1",
+					valueType: stringVal,
+				}
+				coidRA12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     "string2",
+					valueType: stringVal,
+				}
+				coidRA21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     "also a string1",
+					valueType: stringVal,
+				}
+				coidRA22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     "also a string2",
+					valueType: stringVal,
+				}
+				coid31 := SNMPData{
+					columnOID: ".3",
+					oid:       ".3.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid32 := SNMPData{
+					columnOID: ".3",
+					oid:       ".3.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".5.0", ".6.0"}, mock.Anything).Return([]SNMPData{scalarRA1, scalarRA2}).Once()
+				mockClient.On("GetIndexedData", []string{".1", ".2"}, mock.Anything).Return([]SNMPData{coidRA11, coidRA12, coidRA21, coidRA22}).Once()
+				mockClient.On("GetIndexedData", []string{".3"}, mock.Anything).Return([]SNMPData{coid31, coid32}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".5.0",
+							},
+							"rattr2": {
+								ScalarOID: ".6.0",
+							},
+							"rattr3": {
+								OID: ".1",
+							},
+							"rattr4": {
+								OID: ".2",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".3",
+										ResourceAttributes: []string{"rattr1", "rattr2", "rattr3", "rattr4"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "23_multiple_scalar_oid_string_with_multiple_coid_ra_string_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (string) resource attribute attached to ColumnOID metric alongside a ColumnOID (string) attribute creates metric (24)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				coidAttr11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     "string1",
+					valueType: stringVal,
+				}
+				coidAttr12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     "string2",
+					valueType: stringVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".1"}, mock.Anything).Return([]SNMPData{coidAttr11, coidAttr12}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+						},
+						Attributes: map[string]*AttributeConfig{
+							"attr1": {
+								OID: ".1",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1"},
+										Attributes: []Attribute{
+											{
+												Name: "attr1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "24_scalar_ra_string_and_coid_attr_string_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (string) resource attribute attached to ColumnOID metric alongside an Indexed Value Prefix attribute creates metric (25)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".0",
+							},
+						},
+						Attributes: map[string]*AttributeConfig{
+							"attr1": {
+								IndexedValuePrefix: "prefix",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1"},
+										Attributes: []Attribute{
+											{
+												Name: "attr1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "25_scalar_ra_string_and_ivp_attr_on_coid_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "ScalarOID (string) resource attribute attached to ScalarOID metric creates metric (26)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".5.0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				scalarOID := SNMPData{
+					oid:       ".6.0",
+					value:     int64(6),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".5.0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetScalarData", []string{".6.0"}, mock.Anything).Return([]SNMPData{scalarOID}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".5.0",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ScalarOIDs: []ScalarOID{
+									{
+										OID:                ".6.0",
+										ResourceAttributes: []string{"rattr1"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "26_scalar_ra_string_on_scalar_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "Multiple ScalarOID (string) resource attributes attached to ScalarOID metric creates single resource for metric (27)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA1 := SNMPData{
+					oid:       ".5.0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				scalarRA2 := SNMPData{
+					oid:       ".7.0",
+					value:     "also scalar",
+					valueType: stringVal,
+				}
+				scalarOID := SNMPData{
+					oid:       ".6.0",
+					value:     int64(6),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".5.0", ".7.0"}, mock.Anything).Return([]SNMPData{scalarRA1, scalarRA2}).Once()
+				mockClient.On("GetScalarData", []string{".6.0"}, mock.Anything).Return([]SNMPData{scalarOID}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".5.0",
+							},
+							"rattr2": {
+								ScalarOID: ".7.0",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ScalarOIDs: []ScalarOID{
+									{
+										OID:                ".6.0",
+										ResourceAttributes: []string{"rattr1", "rattr2"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "27_multiple_scalar_ra_string_on_scalar_metric_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "Two scalar oid metrics with the same resource attribute get added to a single resource (28)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA := SNMPData{
+					oid:       ".5.0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				scalarOID1 := SNMPData{
+					oid:       ".6.0",
+					value:     int64(6),
+					valueType: integerVal,
+				}
+				scalarOID2 := SNMPData{
+					oid:       ".7.0",
+					value:     int64(7),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".5.0"}, mock.Anything).Return([]SNMPData{scalarRA}).Once()
+				mockClient.On("GetScalarData", []string{".6.0", ".7.0"}, mock.Anything).Return([]SNMPData{scalarOID1, scalarOID2}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".5.0",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ScalarOIDs: []ScalarOID{
+									{
+										OID:                ".6.0",
+										ResourceAttributes: []string{"rattr1"},
+									},
+								},
+							},
+							"metric2": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ScalarOIDs: []ScalarOID{
+									{
+										OID:                ".7.0",
+										ResourceAttributes: []string{"rattr1"},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "28_two_scalar_oid_metrics_with_same_resource_attribute_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
+				require.NoError(t, err)
+			},
+		},
+		{
+			desc: "Metric does not use all available scalar RAs and still behaves properly (near copy of (24)) (29)",
+			testFunc: func(t *testing.T) {
+				mockClient := new(MockClient)
+				scalarRA1 := SNMPData{
+					oid:       ".5.0",
+					value:     "scalar",
+					valueType: stringVal,
+				}
+				scalarRA2 := SNMPData{
+					oid:       ".6.0",
+					value:     "also scalar",
+					valueType: stringVal,
+				}
+				coidAttr11 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.1",
+					value:     "string1",
+					valueType: stringVal,
+				}
+				coidAttr12 := SNMPData{
+					columnOID: ".1",
+					oid:       ".1.2",
+					value:     "string2",
+					valueType: stringVal,
+				}
+				coid21 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.1",
+					value:     int64(3),
+					valueType: integerVal,
+				}
+				coid22 := SNMPData{
+					columnOID: ".2",
+					oid:       ".2.2",
+					value:     int64(4),
+					valueType: integerVal,
+				}
+				mockClient.On("Connect").Return(nil)
+				mockClient.On("Close").Return(nil)
+				mockClient.On("GetScalarData", []string{".5.0", ".6.0"}, mock.Anything).Return([]SNMPData{scalarRA1, scalarRA2}).Once()
+				mockClient.On("GetIndexedData", []string{".1"}, mock.Anything).Return([]SNMPData{coidAttr11, coidAttr12}).Once()
+				mockClient.On("GetIndexedData", []string{".2"}, mock.Anything).Return([]SNMPData{coid21, coid22}).Once()
+				scraper := &snmpScraper{
+					cfg: &Config{
+						ResourceAttributes: map[string]*ResourceAttributeConfig{
+							"rattr1": {
+								ScalarOID: ".5.0",
+							},
+							"rattr2": {
+								ScalarOID: ".6.0",
+							},
+						},
+						Attributes: map[string]*AttributeConfig{
+							"attr1": {
+								OID: ".1",
+							},
+						},
+						Metrics: map[string]*MetricConfig{
+							"metric1": {
+								Description: "test description",
+								Unit:        "By",
+								Gauge: &GaugeMetric{
+									ValueType: "int",
+								},
+								ColumnOIDs: []ColumnOID{
+									{
+										OID:                ".2",
+										ResourceAttributes: []string{"rattr1"},
+										Attributes: []Attribute{
+											{
+												Name: "attr1",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					settings: receivertest.NewNopCreateSettings(),
+					client:   mockClient,
+					logger:   zap.NewNop(),
+				}
+
+				expectedMetricGen := func(t *testing.T) pmetric.Metrics {
+					goldenPath := filepath.Join("testdata", "expected_metrics", "29_metric_does_not_use_all_available_scalar_RAs_golden.yaml")
+					expectedMetrics, err := golden.ReadMetrics(goldenPath)
+					require.NoError(t, err)
+					return expectedMetrics
+				}
+				expectedMetrics := expectedMetricGen(t)
+				metrics, err := scraper.scrape(context.Background())
+				require.NoError(t, err)
+				err = pmetrictest.CompareMetrics(expectedMetrics, metrics, pmetrictest.IgnoreTimestamp())
 				require.NoError(t, err)
 			},
 		},
