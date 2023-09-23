@@ -33,6 +33,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudpubsubexporter v0.85.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter v0.85.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/influxdbexporter v0.85.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/influxdbqrynexporter v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/instanaexporter v0.85.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerexporter v0.85.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/jaegerthrifthttpexporter v0.85.0
@@ -1117,6 +1118,8 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/receiver/webho
 replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver => ../../extension/observer/ecsobserver
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/remoteobserverprocessor => ../../processor/remoteobserverprocessor
+
+replace github.com/open-telemetry/opentelemetry-collector-contrib/exporter/influxdbqrynexporter => ../../exporter/influxdbqrynexporter
 
 replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
