@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/go-faster/city"
 	_ "github.com/go-faster/city"
@@ -153,6 +154,7 @@ type OtelLogsToLineProtocol struct {
 	*influxHTTPWriterBatch
 	fingerprints map[string]bool
 	attrs        map[string]string
+	encoderMts   sync.Mutex
 }
 
 func (c *OtelLogsToLineProtocol) WriteLogs(ctx context.Context, ld plog.Logs) error {
@@ -265,15 +267,18 @@ func (c *OtelLogsToLineProtocol) enqueueLogRecordPoint(ctx context.Context, ts t
 	if c.encoder == nil {
 		c.encoder = c.encoderPool.Get().(*lineprotocol.Encoder)
 	}
-	c.encoder.StartLine("logs")
+	c.encoder.StartLine("logs_v2")
 	hash := c.hash(attrs)
-	contourPrint := hash & 0xFFFF
-	c.encoder.AddTag("contourprint", strconv.FormatUint(contourPrint, 16))
-	for k, v := range attrs {
-		c.encoder.AddTag("attributes."+k, v)
+	attrTags := make([]string, 0, len(attrs))
+	for k := range attrs {
+		attrTags = append(attrTags, k)
 	}
-	c.encoder.AddField("fingerprint", lineprotocol.UintValue(hash))
-	vAttrs, _ := lineprotocol.StringValueFromBytes(jsonFastMarshal(attrs))
+	sort.Strings(attrTags)
+	c.encoder.AddTag("fingerprint", strconv.FormatUint(hash, 16))
+	for _, k := range attrTags {
+		_v, _ := lineprotocol.StringValue(attrs[k])
+		c.encoder.AddField("attributes."+k, _v)
+	}
 	val, _ := lineprotocol.StringValue(body)
 	c.encoder.AddField("body", val)
 	c.encoder.EndLine(ts)
@@ -281,35 +286,20 @@ func (c *OtelLogsToLineProtocol) enqueueLogRecordPoint(ctx context.Context, ts t
 		return c.encoder.Err()
 	}
 
-	week := ts.Truncate(time.Hour * 24 * 7)
-	if !c.fingerprints[fmt.Sprintf("w-%s-%d", week.Format(time.DateOnly), hash)] {
-		c.fingerprints[fmt.Sprintf("w-%s-%d", week.Format(time.DateOnly), hash)] = true
-		for k, v := range attrs {
-			iK := city.CH64([]byte(k)) >> 15
-			_ts := week.Add(time.Duration(iK) * time.Nanosecond)
-			fmt.Println(_ts.Format(time.RFC3339))
-			c.encoder.StartLine("logs.gin.weekly")
-			c.encoder.AddTag("contourprint", strconv.FormatUint(contourPrint, 16))
-			c.encoder.AddTag("fingerprint", strconv.FormatUint(hash, 16))
-			c.encoder.AddTag("key", k)
-			c.encoder.AddTag("value", v)
-			c.encoder.AddField("f", lineprotocol.UintValue(hash))
-			c.encoder.EndLine(_ts)
-			if c.encoder.Err() != nil {
-				return c.encoder.Err()
-			}
-		}
-	}
-
 	day := ts.Truncate(time.Hour * 24)
 	if !c.fingerprints[fmt.Sprintf("d-%s-%d", day.Format(time.DateOnly), hash)] {
 		c.fingerprints[fmt.Sprintf("d-%s-%d", day.Format(time.DateOnly), hash)] = true
 		iK := hash >> 19
 		_ts := ts.Truncate(time.Hour * 24).Add(time.Duration(iK) * time.Nanosecond)
-		c.encoder.StartLine("logs.stream.daily")
-		c.encoder.AddTag("contourprint", strconv.FormatUint(contourPrint, 16))
+		c.encoder.StartLine("logs.stream.daily.2")
 		c.encoder.AddTag("fingerprint", strconv.FormatUint(hash, 16))
-		c.encoder.AddField("attributes", vAttrs)
+		for _, k := range attrTags {
+			_v, _ := lineprotocol.StringValue(attrs[k])
+			c.encoder.AddField("attributes."+k, _v)
+		}
+		keys, _ := json.Marshal(attrTags)
+		_v, _ := lineprotocol.StringValueFromBytes(keys)
+		c.encoder.AddField("keys", _v)
 		c.encoder.EndLine(_ts)
 	}
 	return c.encoder.Err()
@@ -326,7 +316,6 @@ func (c *OtelLogsToLineProtocol) writeBatch(ctx context.Context) error {
 		c.encoderPool.Put(c.encoder)
 		c.encoder = nil
 	}()
-	fmt.Println(string(c.encoder.Bytes()))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.writeURL, bytes.NewReader(c.encoder.Bytes()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
@@ -387,7 +376,6 @@ func (b *influxHTTPWriterBatch) EnqueuePoint(ctx context.Context, measurement st
 			f, _ := lineprotocol.StringValue(k + ":" + v)
 			b.encoder.AddField("f", f)
 			b.encoder.EndLine(time.Unix(0, time.Now().Truncate(time.Hour*24).UnixNano()+int64(hash)))
-			fmt.Println(k, v, time.Unix(0, time.Now().Truncate(time.Hour*24).UnixNano()+int64(hash)))
 		}
 	}
 
